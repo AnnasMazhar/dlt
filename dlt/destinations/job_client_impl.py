@@ -718,9 +718,10 @@ WHERE """
             new_columns = list(new_columns)
             for idx, c in enumerate(new_columns):
                 if not c.get("nullable", True):
+                    table_name = table.get("name") if table else None
                     logger.warning(
                         f"Adding new NOT NULL column '{c['name']}' to existing table "
-                        f"'{table['name']}' — NOT NULL will be ignored (destination does not"
+                        f"'{table_name}' — NOT NULL will be ignored (destination does not"
                         " enforce nulls on alter)."
                     )
                     # copy so original column schema is not mutated
