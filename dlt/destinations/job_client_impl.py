@@ -713,6 +713,19 @@ WHERE """
         self, new_columns: Sequence[TColumnSchema], table: PreparedTableSchema = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
+        # if destination does not enforce nulls on alter, skip nullability on ALTER
+        if not self.capabilities.enforces_nulls_on_alter:
+            new_columns = list(new_columns)
+            for idx, c in enumerate(new_columns):
+                if not c.get("nullable", True):
+                    logger.warning(
+                        f"Adding new NOT NULL column '{c['name']}' to existing table "
+                        f"'{table['name']}' — NOT NULL will be ignored (destination does not"
+                        " enforce nulls on alter)."
+                    )
+                    # copy so original column schema is not mutated
+                    new_columns[idx] = dict(c)
+                    new_columns[idx]["nullable"] = True
         return [f"ADD COLUMN {self._get_column_def_sql(c, table)}" for c in new_columns]
 
     def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:

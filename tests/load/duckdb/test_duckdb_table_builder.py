@@ -90,23 +90,43 @@ def test_alter_table(client: DuckDbClient) -> None:
     sql = ";\n".join(sqls)
     assert sql.count(f"ALTER TABLE {canonical_name}\nADD COLUMN") == 29
     assert "event_test_table" in sql
+    # DuckDB does not enforce nulls on ALTER, so NOT NULL should NOT appear in ALTER statements
+    # (duckdb rejects: "Parser Error: Adding columns with constraints not yet supported")
+    assert '"col1" BIGINT  ' in sql
+    assert "NOT NULL" not in sql
+    assert '"col2" DOUBLE  ' in sql
+    assert '"col3" BOOLEAN  ' in sql
+    assert '"col4" TIMESTAMP WITH TIME ZONE  ' in sql
+    assert '"col5" VARCHAR ' in sql
+    assert '"col6" DECIMAL(38,9)  ' in sql
+    assert '"col7" BLOB ' in sql
+    assert '"col8" DECIMAL(38,0)' in sql
+    assert '"col9" JSON  ' in sql
+    assert '"col10" DATE  ' in sql
+    assert '"col11" TIME  ' in sql
+    assert '"col1_precision" SMALLINT  ' in sql
+    assert '"col4_precision" TIMESTAMP_MS  ' in sql
+    assert '"col5_precision" VARCHAR' in sql
+    assert '"col6_precision" DECIMAL(6,2)  ' in sql
+    assert '"col7_precision" BLOB  ' in sql
+    assert '"col11_precision" TIME  ' in sql
+
+
+def test_enforces_nulls_on_alter_capability(client: DuckDbClient) -> None:
+    """Verify duckdb sets enforces_nulls_on_alter = False (issue #4312)"""
+    assert client.capabilities.enforces_nulls_on_alter is False
+
+
+def test_create_table_still_has_not_null(client: DuckDbClient) -> None:
+    """CREATE path must still emit NOT NULL (only ALTER path affected by enforces_nulls_on_alter)"""
+    sql = client._get_table_update_sql(
+        "event_test_table", add_timezone_false_on_precision(TABLE_UPDATE), False
+    )[0]
+    sqlfluff.parse(sql, dialect="duckdb")
+    # CREATE should still have NOT NULL constraints
     assert '"col1" BIGINT  NOT NULL' in sql
     assert '"col2" DOUBLE  NOT NULL' in sql
     assert '"col3" BOOLEAN  NOT NULL' in sql
-    assert '"col4" TIMESTAMP WITH TIME ZONE  NOT NULL' in sql
-    assert '"col5" VARCHAR ' in sql
-    assert '"col6" DECIMAL(38,9)  NOT NULL' in sql
-    assert '"col7" BLOB ' in sql
-    assert '"col8" DECIMAL(38,0)' in sql
-    assert '"col9" JSON  NOT NULL' in sql
-    assert '"col10" DATE  NOT NULL' in sql
-    assert '"col11" TIME  NOT NULL' in sql
-    assert '"col1_precision" SMALLINT  NOT NULL' in sql
-    assert '"col4_precision" TIMESTAMP_MS  NOT NULL' in sql
-    assert '"col5_precision" VARCHAR' in sql
-    assert '"col6_precision" DECIMAL(6,2)  NOT NULL' in sql
-    assert '"col7_precision" BLOB  NOT NULL' in sql
-    assert '"col11_precision" TIME  NOT NULL' in sql
 
 
 def test_create_table_with_hints(client: DuckDbClient) -> None:
