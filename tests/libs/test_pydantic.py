@@ -274,6 +274,44 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
     assert "json_any_field" not in result
 
 
+def test_pydantic_decimal_precision_scale_from_field() -> None:
+    """Test that decimal precision/scale are extracted from Field(max_digits, decimal_places)."""
+
+    class OrderModel(BaseModel):
+        amount: Optional[Decimal] = Field(default=None, max_digits=12, decimal_places=4)
+
+    result = pydantic_to_table_schema_columns(OrderModel)
+    assert result["amount"]["data_type"] == "decimal"
+    assert result["amount"]["precision"] == 12
+    assert result["amount"]["scale"] == 4
+    assert result["amount"]["nullable"] is True
+
+
+def test_pydantic_decimal_precision_scale_from_condecimal() -> None:
+    """Test that decimal precision/scale are extracted from condecimal."""
+    from pydantic import condecimal
+
+    class OrderModel(BaseModel):
+        total: condecimal(max_digits=10, decimal_places=2)
+
+    result = pydantic_to_table_schema_columns(OrderModel)
+    assert result["total"]["data_type"] == "decimal"
+    assert result["total"]["precision"] == 10
+    assert result["total"]["scale"] == 2
+
+
+def test_pydantic_plain_decimal_no_precision_scale() -> None:
+    """Test that plain Decimal without constraints has no precision/scale keys."""
+
+    class SimpleModel(BaseModel):
+        value: Decimal
+
+    result = pydantic_to_table_schema_columns(SimpleModel)
+    assert result["value"]["data_type"] == "decimal"
+    assert "precision" not in result["value"]
+    assert "scale" not in result["value"]
+
+
 def test_pydantic_model_to_columns_annotated() -> None:
     # We need to check if pydantic_to_table_schema_columns is idempotent
     # and can generate the same schema from the class and from the class instance.

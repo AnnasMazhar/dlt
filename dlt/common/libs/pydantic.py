@@ -16,7 +16,7 @@ from typing import (
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError
-from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns
+from dlt.common.schema.typing import TColumnSchema, TSchemaEvolutionMode, TTableSchemaColumns
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.typing import (
     TypedDict,
@@ -196,6 +196,22 @@ def resolve_variant_model(
     return mapping.get(str(disc_value))
 
 
+def _decimal_precision_from_metadata(metadata: Tuple[Any, ...]) -> Optional[int]:
+    """Extract decimal precision (max_digits) from pydantic field metadata."""
+    for item in metadata:
+        if hasattr(item, "max_digits") and item.max_digits is not None:
+            return item.max_digits
+    return None
+
+
+def _decimal_scale_from_metadata(metadata: Tuple[Any, ...]) -> Optional[int]:
+    """Extract decimal scale (decimal_places) from pydantic field metadata."""
+    for item in metadata:
+        if hasattr(item, "decimal_places") and item.decimal_places is not None:
+            return item.decimal_places
+    return None
+
+
 def pydantic_to_table_schema_columns(
     model: Union[BaseModel, Type[BaseModel]],
 ) -> TTableSchemaColumns:
@@ -298,11 +314,19 @@ def pydantic_to_table_schema_columns(
         elif data_type == "json" and skip_nested_types:
             continue
         else:
-            result[name] = {
+            column: TColumnSchema = {
                 "name": name,
                 "data_type": data_type,
                 "nullable": nullable,
             }
+            if data_type == "decimal":
+                precision = _decimal_precision_from_metadata(field.metadata)
+                scale = _decimal_scale_from_metadata(field.metadata)
+                if precision is not None:
+                    column["precision"] = precision
+                if scale is not None:
+                    column["scale"] = scale
+            result[name] = column
 
     return result
 
