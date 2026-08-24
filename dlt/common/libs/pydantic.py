@@ -45,12 +45,14 @@ try:
     if not PYDANTIC_VERSION.startswith("2."):
         raise ImportError(f"Found pydantic {PYDANTIC_VERSION} but dlt requires pydantic>=2.0")
     from pydantic import (
+        AwareDatetime,
         BaseModel,
         Field,
-        ValidationError,
         Json,
-        create_model,
+        NaiveDatetime,
         RootModel as PydanticRootModel,
+        ValidationError,
+        create_model,
     )
     from pydantic.fields import FieldInfo
     from pydantic.warnings import PydanticDeprecationWarning
@@ -111,6 +113,36 @@ class DltConfig(TypedDict, total=False):
     skip_complex_types: bool  # deprecated
     return_validated_models: bool
     is_authoritative_model: Optional[bool]
+
+
+def _extract_decimal_constraints(field: FieldInfo) -> Dict[str, int]:
+    """Extract precision (max_digits) and scale (decimal_places) from a FieldInfo.
+
+    Walks field.metadata to find Decimal constraint objects (DecimalMaxDigits,
+    DecimalMaxPlaces) via duck-typing. Also handles nested FieldInfo instances
+    from Annotated[Decimal, Field(...)].
+
+    Returns:
+        Dict with 'precision' and/or 'scale' keys when present, empty dict otherwise.
+    """
+    result: Dict[str, int] = {}
+    to_check: List[Any] = list(field.metadata) if field.metadata else []
+
+    while to_check:
+        meta = to_check.pop()
+        # Annotated[X, Field(...)] nests FieldInfo in metadata — recurse into it
+        if isinstance(meta, FieldInfo) and meta.metadata:
+            to_check.extend(meta.metadata)
+            continue
+        # Duck-type constraint objects (DecimalMaxDigits, DecimalMaxPlaces)
+        max_digits = getattr(meta, "max_digits", None)
+        decimal_places = getattr(meta, "decimal_places", None)
+        if max_digits is not None:
+            result["precision"] = max_digits
+        if decimal_places is not None:
+            result["scale"] = decimal_places
+
+    return result
 
 
 def _build_discriminator_map(
@@ -263,15 +295,19 @@ def pydantic_to_table_schema_columns(
 
         is_inner_type_pydantic_model = False
         name = field.alias or field_name
-        try:
-            data_type = py_type_to_sc_type(inner_type)
-        except TypeError:
-            if is_subclass(inner_type, BaseModel):
-                data_type = "json"
-                is_inner_type_pydantic_model = True
-            else:
-                # try to coerce unknown type to text
-                data_type = "text"
+        # Handle AwareDatetime/NaiveDatetime before py_type_to_sc_type (they're not datetime subclasses)
+        if inner_type is AwareDatetime or inner_type is NaiveDatetime:
+            data_type = "timestamp"
+        else:
+            try:
+                data_type = py_type_to_sc_type(inner_type)
+            except TypeError:
+                if is_subclass(inner_type, BaseModel):
+                    data_type = "json"
+                    is_inner_type_pydantic_model = True
+                else:
+                    # try to coerce unknown type to text
+                    data_type = "text"
 
         if is_inner_type_pydantic_model and not skip_nested_types:
             result[name] = {
@@ -298,11 +334,33 @@ def pydantic_to_table_schema_columns(
         elif data_type == "json" and skip_nested_types:
             continue
         else:
-            result[name] = {
+            col: Dict[str, Any] = {
                 "name": name,
                 "data_type": data_type,
                 "nullable": nullable,
             }
+            # Add precision/scale for Decimal fields when constrained
+            if data_type == "decimal":
+                constraints = _extract_decimal_constraints(field)
+                # Also check inner_type for condecimal-style constrained types
+                if not constraints:
+                    max_digits = getattr(inner_type, "max_digits", None)
+                    decimal_places = getattr(inner_type, "decimal_places", None)
+                    if max_digits is not None:
+                        constraints["precision"] = max_digits
+                    if decimal_places is not None:
+                        constraints["scale"] = decimal_places
+                if "precision" in constraints:
+                    col["precision"] = constraints["precision"]
+                if "scale" in constraints:
+                    col["scale"] = constraints["scale"]
+            # Add timezone for AwareDatetime/NaiveDatetime fields
+            elif data_type == "timestamp":
+                if inner_type is AwareDatetime:
+                    col["timezone"] = True
+                elif inner_type is NaiveDatetime:
+                    col["timezone"] = False
+            result[name] = col
 
     return result
 

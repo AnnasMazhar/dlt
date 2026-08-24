@@ -2045,3 +2045,117 @@ def test_model_validator_preserved_on_synthesis() -> None:
     evolved = apply_schema_contract_to_model(WithModelValidator, "evolve", "freeze")
     with pytest.raises(ValidationError):
         evolved.model_validate({"a": 6, "b": 6})
+
+
+# =====================================================================
+# Tests for precision/scale/timezone in pydantic_to_table_schema_columns
+# (dlt-hub/dlt#4304)
+# =====================================================================
+
+
+def test_decimal_with_field_max_digits_decimal_places() -> None:
+    """Decimal field with Field(max_digits=, decimal_places=) emits precision/scale."""
+
+    class DecimalModel(BaseModel):
+        amount: Decimal = Field(max_digits=10, decimal_places=2)
+
+    result = pydantic_to_table_schema_columns(DecimalModel)
+    assert result["amount"]["data_type"] == "decimal"
+    assert result["amount"]["precision"] == 10
+    assert result["amount"]["scale"] == 2
+
+
+def test_decimal_unconstrained_no_precision_scale() -> None:
+    """Unconstrained Decimal field does NOT emit precision/scale keys."""
+
+    class UnconstrainedDecimalModel(BaseModel):
+        value: Decimal
+
+    result = pydantic_to_table_schema_columns(UnconstrainedDecimalModel)
+    assert result["value"]["data_type"] == "decimal"
+    assert "precision" not in result["value"]
+    assert "scale" not in result["value"]
+
+
+def test_decimal_annotated_field() -> None:
+    """Annotated[Decimal, Field(max_digits=, decimal_places=)] emits precision/scale."""
+
+    class AnnotatedDecimalModel(BaseModel):
+        price: Annotated[Decimal, Field(max_digits=8, decimal_places=4)]
+
+    result = pydantic_to_table_schema_columns(AnnotatedDecimalModel)
+    assert result["price"]["data_type"] == "decimal"
+    assert result["price"]["precision"] == 8
+    assert result["price"]["scale"] == 4
+
+
+def test_condecimal_emits_precision_scale() -> None:
+    """condecimal(max_digits=, decimal_places=) emits precision/scale."""
+    try:
+        from pydantic import condecimal
+    except ImportError:
+        pytest.skip("condecimal not available in this pydantic version")
+
+    ConstrainedDecimal = condecimal(max_digits=12, decimal_places=3)
+
+    class ConDecimalModel(BaseModel):
+        rate: ConstrainedDecimal  # type: ignore[valid-type]
+
+    result = pydantic_to_table_schema_columns(ConDecimalModel)
+    assert result["rate"]["data_type"] == "decimal"
+    assert result["rate"]["precision"] == 12
+    assert result["rate"]["scale"] == 3
+
+
+def test_aware_datetime_emits_timezone_true() -> None:
+    """AwareDatetime field emits timezone=True."""
+    from pydantic import AwareDatetime
+
+    class AwareModel(BaseModel):
+        created_at: AwareDatetime
+
+    result = pydantic_to_table_schema_columns(AwareModel)
+    assert result["created_at"]["data_type"] == "timestamp"
+    assert result["created_at"]["timezone"] is True
+
+
+def test_naive_datetime_emits_timezone_false() -> None:
+    """NaiveDatetime field emits timezone=False."""
+    from pydantic import NaiveDatetime
+
+    class NaiveModel(BaseModel):
+        logged_at: NaiveDatetime
+
+    result = pydantic_to_table_schema_columns(NaiveModel)
+    assert result["logged_at"]["data_type"] == "timestamp"
+    assert result["logged_at"]["timezone"] is False
+
+
+def test_plain_datetime_no_timezone_key() -> None:
+    """Plain datetime field does NOT emit timezone key."""
+
+    class PlainDatetimeModel(BaseModel):
+        timestamp_field: datetime
+
+    result = pydantic_to_table_schema_columns(PlainDatetimeModel)
+    assert result["timestamp_field"]["data_type"] == "timestamp"
+    assert "timezone" not in result["timestamp_field"]
+
+
+def test_nested_model_propagates_precision_scale() -> None:
+    """Flattened nested model propagates precision/scale to child columns."""
+    from typing import ClassVar
+
+    class InnerDecimal(BaseModel):
+        value: Decimal = Field(max_digits=6, decimal_places=2)
+
+    class OuterModel(BaseModel):
+        nested: InnerDecimal
+        dlt_config: ClassVar[DltConfig] = {"skip_nested_types": True}
+
+    result = pydantic_to_table_schema_columns(OuterModel)
+    # The flattened child column should have precision/scale
+    assert "nested__value" in result
+    assert result["nested__value"]["data_type"] == "decimal"
+    assert result["nested__value"]["precision"] == 6
+    assert result["nested__value"]["scale"] == 2
