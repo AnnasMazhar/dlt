@@ -458,7 +458,9 @@ def test_optional_arg_from_spec_not_passed(item_type: TestDataItemFormat) -> Non
 
 @configspec
 class SomeDataOverrideConfiguration(BaseConfiguration):
-    created_at: dlt.sources.incremental = dlt.sources.incremental("updated_at", initial_value="2022-02-03T00:00:00Z")  # type: ignore[type-arg]
+    created_at: dlt.sources.incremental = dlt.sources.incremental(
+        "updated_at", initial_value="2022-02-03T00:00:00Z"
+    )  # type: ignore[type-arg]
 
 
 # provide what to inject via spec. the spec contain the default
@@ -620,7 +622,7 @@ def test_incremental_transform_return_empty_rows_with_lag(item_type: TestDataIte
     def some_data(
         created_at=dlt.sources.incremental(
             "created_at", initial_value="2024-11-01T08:00:00+08:00", lag=3600
-        )
+        ),
     ):
         yield from source_items
 
@@ -754,7 +756,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include"),
     ):
         yield source_items
 
@@ -826,7 +828,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include"),
     ):
         yield source_items
 
@@ -855,7 +857,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include"),
     ):
         yield source_items
 
@@ -882,7 +884,7 @@ def test_cursor_path_none_includes_records_without_cursor_path(
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include"),
     ):
         yield source_items
 
@@ -910,7 +912,7 @@ def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="exclude")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="exclude"),
     ):
         yield source_items
 
@@ -935,7 +937,7 @@ def test_cursor_path_none_can_raise_on_none_1(item_type: TestDataItemFormat) -> 
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise"),
     ):
         yield source_items
 
@@ -963,7 +965,7 @@ def test_cursor_path_none_can_raise_on_none_2(item_type: TestDataItemFormat) -> 
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise"),
     ):
         yield source_items
 
@@ -1000,7 +1002,7 @@ def test_cursor_path_none_can_raise_on_column_missing(item_type: TestDataItemFor
 
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")
+        created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise"),
     ):
         yield source_items
 
@@ -1072,7 +1074,7 @@ def test_cursor_path_none_nested_can_raise_on_none_1() -> None:
     def some_data(
         created_at=dlt.sources.incremental(
             "data.items[0].created_at", on_cursor_value_missing="raise"
-        )
+        ),
     ):
         yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
 
@@ -1087,7 +1089,7 @@ def test_cursor_path_none_nested_can_raise_on_none_2() -> None:
     def some_data(
         created_at=dlt.sources.incremental(
             "data.items[*].created_at", on_cursor_value_missing="raise"
-        )
+        ),
     ):
         yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
 
@@ -1102,7 +1104,7 @@ def test_cursor_path_none_nested_can_include_on_none_1() -> None:
     def some_data(
         created_at=dlt.sources.incremental(
             "data.items[*].created_at", on_cursor_value_missing="include"
-        )
+        ),
     ):
         yield {
             "data": {
@@ -1131,7 +1133,7 @@ def test_cursor_path_none_nested_can_include_on_none_2() -> None:
     def some_data(
         created_at=dlt.sources.incremental(
             "data.items[0].created_at", on_cursor_value_missing="include"
-        )
+        ),
     ):
         yield {
             "data": {
@@ -1160,7 +1162,7 @@ def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
     def some_data(
         created_at=dlt.sources.incremental(
             "data.items[*].created_at", on_cursor_value_missing="include"
-        )
+        ),
     ):
         yield {
             "data": {
@@ -2005,7 +2007,7 @@ def test_last_value_func_on_dict() -> None:
 
     @dlt.resource(primary_key="id", table_name=lambda i: i["type"])
     def _get_shuffled_events(
-        last_created_at=dlt.sources.incremental("$", last_value_func=by_event_type)
+        last_created_at=dlt.sources.incremental("$", last_value_func=by_event_type),
     ):
         with open(
             "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
@@ -2341,7 +2343,7 @@ def test_end_value_with_batches(item_type: TestDataItemFormat) -> None:
     def batched_sequence(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=1
-        )
+        ),
     ) -> Any:
         start = updated_at.last_value
         data = [{"updated_at": i} for i in range(start, start + 12)]
@@ -2462,7 +2464,7 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
     def descending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10
-        )
+        ),
     ) -> Any:
         for chunk in chunks(list(reversed(range(48))), 10):
             data = [{"updated_at": i} for i in chunk]
@@ -2478,7 +2480,7 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
     def ascending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=22, end_value=45
-        )
+        ),
     ) -> Any:
         for chunk in chunks(list(range(22, 500)), 10):
             data = [{"updated_at": i} for i in chunk]
@@ -2494,7 +2496,7 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
     def descending_single_item(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10
-        )
+        ),
     ) -> Any:
         for i in reversed(range(14)):
             data = [{"updated_at": i}]
@@ -2509,7 +2511,7 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
     def ascending_single_item(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10, end_value=22
-        )
+        ),
     ) -> Any:
         for i in range(10, 500):
             data = [{"updated_at": i}]
@@ -2539,7 +2541,7 @@ def test_start_out_of_range_open_equals_start_value(item_type: TestDataItemForma
     def descending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10, row_order="desc", range_start="open"
-        )
+        ),
     ) -> Any:
         # descending from 12 down to 8, with value 10 == start_value
         for i in [12, 11, 10, 9, 8]:
@@ -2560,7 +2562,7 @@ def test_async_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
     async def descending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10, row_order="desc"
-        )
+        ),
     ) -> Any:
         for chunk in chunks(count(start=48, step=-1), 10):
             await asyncio.sleep(0.01)
@@ -2580,7 +2582,7 @@ def test_parallel_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
     def descending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10, row_order="desc"
-        )
+        ),
     ) -> Any:
         for chunk in chunks(count(start=48, step=-1), 10):
             data = [{"updated_at": i} for i in chunk]
@@ -2623,7 +2625,7 @@ def test_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
     def descending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10, row_order="desc"
-        )
+        ),
     ) -> Any:
         for chunk in chunks(count(start=48, step=-1), 10):
             data = [{"updated_at": i} for i in chunk]
@@ -2636,7 +2638,7 @@ def test_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
     def ascending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=22, end_value=45, row_order="asc"
-        )
+        ),
     ) -> Any:
         # use INFINITE sequence so this test wil not stop if closing logic is flawed
         for chunk in chunks(count(start=22), 10):
@@ -2652,7 +2654,7 @@ def test_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
     def ascending_desc(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=22, end_value=45, row_order="desc"
-        )
+        ),
     ) -> Any:
         for chunk in chunks(range(22, 100), 10):
             data = [{"updated_at": i} for i in chunk]
@@ -2818,7 +2820,12 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         is pendulum.DateTime
     )
     # typing has precedence
-    assert dlt.sources.incremental[pendulum.DateTime]("id", initial_value=1).get_incremental_value_type() is pendulum.DateTime  # type: ignore[arg-type]
+    assert (
+        dlt.sources.incremental[pendulum.DateTime](
+            "id", initial_value=1
+        ).get_incremental_value_type()
+        is pendulum.DateTime
+    )  # type: ignore[arg-type]
 
     # context with allow_external_schedulers=False overrides per-incremental True so the
     # join path is skipped entirely; this lets the resource bodies below test type
@@ -2830,7 +2837,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     def test_type(
         updated_at=dlt.sources.incremental[str](  # noqa: B008
             "updated_at", allow_external_schedulers=True
-        )
+        ),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -2845,7 +2852,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     def test_type_2(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", allow_external_schedulers=True
-        )
+        ),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -2871,7 +2878,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     # pass explicit value overriding default that is typed
     @dlt.resource
     def test_type_4(
-        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True)
+        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -2887,7 +2894,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     def test_type_5(
         updated_at=dlt.sources.incremental[int](  # noqa: B008
             "updated_at", allow_external_schedulers=True
-        )
+        ),
     ):
         assert updated_at.allow_external_schedulers is False
         data = [{"updated_at": d} for d in [1, 2, 3]]
@@ -2979,6 +2986,38 @@ def test_incremental_merge_native_representation():
     # Assert the expected changes in the incremental object
     assert incremental.cursor_path == "another_path"
     assert incremental.lag == 5
+
+
+@pytest.mark.parametrize(
+    "incremental_instance,expected_unit",
+    [
+        # Runtime type: date object → "date"
+        (Incremental("day", initial_value=date(2026, 1, 1)), "date"),
+        # Runtime type: datetime object → "datetime"
+        (Incremental("day", initial_value=datetime(2026, 1, 1, 0, 0, 0)), "datetime"),
+        # String initial_value without type annotation → None
+        (Incremental("day", initial_value="2026-01-01"), None),
+    ],
+    ids=[
+        "runtime_date_object",
+        "runtime_datetime_object",
+        "string_initial_value_no_type",
+    ],
+)
+def test_get_cursor_unit(incremental_instance: Incremental, expected_unit: str) -> None:
+    """Test _get_cursor_unit returns correct unit based on declared type or initial_value runtime type."""
+    assert incremental_instance._get_cursor_unit() == expected_unit
+
+
+def test_get_cursor_unit_from_orig_class() -> None:
+    """Test _get_cursor_unit works with Incremental[date] and Incremental[datetime] type annotations."""
+    # Incremental[date] via __orig_class__
+    inc_date = Incremental[date]("day", initial_value="2026-01-01")
+    assert inc_date._get_cursor_unit() == "date"
+
+    # Incremental[datetime] via __orig_class__
+    inc_datetime = Incremental[datetime]("day", initial_value="2026-01-01T00:00:00Z")
+    assert inc_datetime._get_cursor_unit() == "datetime"
 
 
 @pytest.mark.parametrize("lag", [0, 1, 100, 200, 1000])
@@ -3146,7 +3185,7 @@ def test_incremental_lag_datetime_str(lag: float, last_value_func) -> None:
 
     @dlt.resource(name=name, primary_key="id", write_disposition="merge")
     def events_resource(
-        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
+        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func),
     ):
         initial_entries = [
             {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
@@ -3275,7 +3314,7 @@ def test_incremental_lag_disabled_with_end_values(lag: float, end_value: float) 
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
     def events_resource(
-        _=dlt.sources.incremental("id", lag=lag, initial_value=-450, end_value=end_value)
+        _=dlt.sources.incremental("id", lag=lag, initial_value=-450, end_value=end_value),
     ):
         # prepare negative ids so for all end_values we load the table with cutoff at -450
         # lag, if present would skip values even from initial load (lag==-3600)
@@ -3338,7 +3377,7 @@ def test_incremental_lag_date_str(lag: int, last_value_func) -> None:
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
     def events_resource(
-        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
+        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func),
     ):
         initial_entries = [
             {"id": 1, "created_at": "2023-03-01", "event": "1"},
@@ -3475,7 +3514,7 @@ def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
     def events_resource(
-        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
+        _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func),
     ):
         initial_entries = [
             {"id": 1, "created_at": date(2023, 3, 1), "event": "1"},
@@ -3612,7 +3651,9 @@ def test_incremental_lag_int_with_initial_values(lag: float, last_value_func) ->
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
     def events_resource(
-        _=dlt.sources.incremental("id", lag=lag, initial_value=200, last_value_func=last_value_func)
+        _=dlt.sources.incremental(
+            "id", lag=lag, initial_value=200, last_value_func=last_value_func
+        ),
     ):
         initial_entries = [
             {"id": 100, "event": "100"},
@@ -4120,7 +4161,7 @@ def test_incremental_in_resource_decorator_default_arg(use_dict: bool) -> None:
     def with_default_incremental_arg(
         incremental: dlt.sources.incremental[int] = dlt.sources.incremental(
             "value", initial_value=3, last_value_func=min
-        )
+        ),
     ):
         assert incremental.last_value == initial_value
         assert incremental.last_value_func == last_value_func
@@ -4346,7 +4387,7 @@ def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> Non
             updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
                 "updated_at",
                 range_start="open",
-            )
+            ),
         ):
             yield [{"updated_at": i} for i in range(3)]
 
@@ -4501,7 +4542,7 @@ def test_incremental_and_limit(offset_by_last_value: bool):
         table_name="items",
     )
     def resource(
-        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1, row_order="asc")
+        incremental=dlt.sources.incremental(cursor_path="id", initial_value=-1, row_order="asc"),
     ):
         range_iterator = (
             range(incremental.start_value + 1, 1000) if offset_by_last_value else range(1000)

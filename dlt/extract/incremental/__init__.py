@@ -9,8 +9,10 @@ from typing import (
     Union,
     Literal,
     Tuple,
+    get_args as typing_get_args,
+    get_origin as typing_get_origin,
 )
-from datetime import datetime  # noqa: I251
+from datetime import datetime, date  # noqa: I251
 import inspect
 from functools import wraps
 
@@ -311,6 +313,41 @@ class Incremental(
         """Return the name of the cursor column if the cursor path resolves to a single column"""
         return extract_simple_field_name(self.cursor_path)
 
+    def _get_cursor_unit(self) -> Optional[Literal["date", "datetime"]]:
+        """Determine the cursor unit from the declared type or initial_value runtime type.
+
+        Returns:
+            "date" if cursor is date-based (lag in days),
+            "datetime" if cursor is datetime-based (lag in seconds),
+            None if the unit cannot be determined.
+        """
+        # First, try to get the unit from __orig_class__ (Incremental[date] or Incremental[datetime])
+        try:
+            orig_class = getattr(self, "__orig_class__", None)
+            if orig_class is not None:
+                origin = typing_get_origin(orig_class)
+                if origin is not None:
+                    args = typing_get_args(orig_class)
+                    if args:
+                        arg = args[0]
+                        # Check datetime BEFORE date (datetime is subclass of date)
+                        if arg is datetime:
+                            return "datetime"
+                        if arg is date:
+                            return "date"
+        except Exception:
+            pass
+
+        # Fallback to initial_value runtime type
+        if self.initial_value is not None:
+            # Check datetime BEFORE date (datetime is subclass of date)
+            if isinstance(self.initial_value, datetime):
+                return "datetime"
+            if isinstance(self.initial_value, date):
+                return "date"
+
+        return None
+
     def resolve_bounds(
         self, apply_lag: bool = True
     ) -> Tuple[Optional[TCursorValue], Optional[TCursorValue]]:
@@ -462,6 +499,7 @@ class Incremental(
             self.end_value,
             s["last_value"],
             self.resource_name,
+            self._get_cursor_unit(),
         )
 
     def _transform_item(

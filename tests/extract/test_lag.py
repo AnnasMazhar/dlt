@@ -357,3 +357,83 @@ def test_apply_lag_to_value_edge_cases():
     result = _apply_lag_to_value(3600, year_boundary, max)  # Go back 1 hour
     expected = datetime(2022, 12, 31, 23, 0, 0)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    "cursor_unit,value,lag,last_value_func,expected",
+    [
+        # cursor_unit="date" forces lag in DAYS, even for datetime-shaped strings
+        ("date", "2026-08-27T00:00:00Z", 28, max, "2026-07-30T00:00:00Z"),
+        ("date", "2026-08-27", 1, max, "2026-08-26"),
+        # cursor_unit="datetime" forces lag in SECONDS, even for date-shaped strings
+        (
+            "datetime",
+            "2026-08-27",
+            1,
+            max,
+            "2026-08-26",
+        ),  # midnight minus 1s → 2026-08-26T23:59:59 → re-emitted as date
+        ("datetime", "2026-08-27T00:00:00Z", 3600, max, "2026-08-26T23:00:00Z"),
+        # None + str: current behavior preserved (inferred from format)
+        (None, "2026-08-27", 1, max, "2026-08-26"),  # date format → days
+        (None, "2026-08-27T00:00:00Z", 1, max, "2026-08-26T23:59:59Z"),  # datetime format → seconds
+        # Typed objects with explicit cursor_unit
+        ("date", date(2023, 1, 15), 1, max, date(2023, 1, 14)),
+        ("datetime", datetime(2023, 1, 1, 12, 0, 0), 3600, max, datetime(2023, 1, 1, 11, 0, 0)),
+    ],
+    ids=[
+        "date_unit_datetime_string_28days",
+        "date_unit_date_string_1day",
+        "datetime_unit_date_string_1sec",
+        "datetime_unit_datetime_string_1hour",
+        "none_unit_date_string_inferred_days",
+        "none_unit_datetime_string_inferred_seconds",
+        "date_unit_date_object_1day",
+        "datetime_unit_datetime_object_1hour",
+    ],
+)
+def test_apply_lag_to_value_cursor_unit(
+    cursor_unit: str, value: Any, lag: float, last_value_func: Callable, expected: Any
+) -> None:
+    """Test that cursor_unit parameter correctly determines lag unit."""
+    result = _apply_lag_to_value(lag, value, last_value_func, cursor_unit)
+    assert result == expected
+
+
+def test_apply_lag_to_value_warning_on_inferred_unit(caplog: pytest.LogCaptureFixture) -> None:
+    """Test that a warning is emitted when cursor_unit is None and value is a string."""
+    import logging
+
+    # Enable propagation so caplog can capture dlt logger messages
+    dlt_logger = logging.getLogger("dlt")
+    original_propagate = dlt_logger.propagate
+    dlt_logger.propagate = True
+
+    try:
+        with caplog.at_level(logging.WARNING, logger="dlt"):
+            # No cursor_unit, string value → should warn
+            _apply_lag_to_value(1, "2026-08-27", max, cursor_unit=None)
+
+        assert any("inferred" in record.message.lower() for record in caplog.records)
+        assert any(record.levelno == logging.WARNING for record in caplog.records)
+    finally:
+        dlt_logger.propagate = original_propagate
+
+
+def test_apply_lag_to_value_no_warning_with_cursor_unit(caplog: pytest.LogCaptureFixture) -> None:
+    """Test that NO warning is emitted when cursor_unit is explicitly set."""
+    import logging
+
+    # Enable propagation so caplog can capture dlt logger messages
+    dlt_logger = logging.getLogger("dlt")
+    original_propagate = dlt_logger.propagate
+    dlt_logger.propagate = True
+
+    try:
+        with caplog.at_level(logging.WARNING, logger="dlt"):
+            # Explicit cursor_unit="date" → should NOT warn
+            _apply_lag_to_value(1, "2026-08-27", max, cursor_unit="date")
+
+        assert not any("inferred" in record.message.lower() for record in caplog.records)
+    finally:
+        dlt_logger.propagate = original_propagate

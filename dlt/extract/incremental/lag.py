@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, date  # noqa: I251
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from dlt.common import logger, pendulum
 from dlt.common.time import (
@@ -13,19 +13,49 @@ from . import TCursorValue, LastValueFunc
 
 
 def _apply_lag_to_value(
-    lag: float, value: Any, last_value_func: LastValueFunc[TCursorValue]
+    lag: float,
+    value: Any,
+    last_value_func: LastValueFunc[TCursorValue],
+    cursor_unit: Optional[Literal["date", "datetime"]] = None,
 ) -> Any:
     """Applies lag to a value, in case of `str` types it attempts to return a string
-    with the lag applied preserving original format of a datetime/date
+    with the lag applied preserving original format of a datetime/date.
+
+    Args:
+        lag: The amount of lag to apply.
+        value: The cursor value to apply lag to.
+        last_value_func: The function used to determine cursor direction (max or min).
+        cursor_unit: Optional explicit unit ("date" or "datetime") that determines
+            whether lag is applied in days or seconds. When None, unit is inferred
+            from the value's format (emitting a warning for string values).
     """
     # Determine if the input is originally a string and capture its format
     value_format: str = None
     if isinstance(value, str):
         value_format = detect_datetime_format(value)
-        is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d")
-        value = (
-            ensure_pendulum_date(value) if is_str_date else ensure_pendulum_datetime_non_utc(value)
-        )
+        # Determine is_str_date based on cursor_unit if provided, otherwise infer from format
+        if cursor_unit == "date":
+            # Explicit date cursor: parse as date (truncates if datetime-shaped)
+            value = ensure_pendulum_date(value)
+            is_str_date = True
+        elif cursor_unit == "datetime":
+            # Explicit datetime cursor: parse as datetime (midnight if date-shaped)
+            value = ensure_pendulum_datetime_non_utc(value)
+            is_str_date = False
+        else:
+            # No explicit cursor_unit: infer from string format and warn
+            is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d")
+            value = (
+                ensure_pendulum_date(value)
+                if is_str_date
+                else ensure_pendulum_datetime_non_utc(value)
+            )
+            inferred_unit = "days" if is_str_date else "seconds"
+            logger.warning(
+                f"Lag unit for cursor value inferred as {inferred_unit} from its string format. "
+                "Declare Incremental[date] or Incremental[datetime] (or pass a typed "
+                "initial_value) to make the lag unit explicit."
+            )
 
     # we must have pendulum instance.
     if isinstance(value, date):
@@ -36,7 +66,7 @@ def _apply_lag_to_value(
                 if isinstance(value, datetime)
                 else ensure_pendulum_date(value)
             )
-        value = _apply_lag_to_datetime(lag, value, last_value_func)
+        value = _apply_lag_to_datetime(lag, value, last_value_func, cursor_unit)
         # go back to string or pass exact type
         value = datetime_obj_to_str(value, value_format) if value_format else value
 
@@ -57,10 +87,18 @@ def _apply_lag_to_datetime(
     lag: float,
     value: pendulum.DateTime,
     last_value_func: LastValueFunc[TCursorValue],
+    cursor_unit: Optional[Literal["date", "datetime"]] = None,
 ) -> pendulum.DateTime:
     if last_value_func is max:
         lag = -lag
 
+    # Explicit cursor_unit takes precedence
+    if cursor_unit == "date":
+        return value.add(days=lag)
+    if cursor_unit == "datetime":
+        return value.add(seconds=lag)
+
+    # Fallback to type-based inference
     if isinstance(value, pendulum.DateTime):
         return value.add(seconds=lag)
 
@@ -79,10 +117,11 @@ def apply_lag(
     initial_value: TCursorValue,
     last_value: TCursorValue,
     last_value_func: LastValueFunc[TCursorValue],
+    cursor_unit: Optional[Literal["date", "datetime"]] = None,
 ) -> TCursorValue:
     """Applies lag to `last_value` but prevents it to cross `initial_value`: observing order of last_value_func"""
     # Skip lag adjustment to avoid out-of-bounds issues
-    lagged_last_value = _apply_lag_to_value(lag, last_value, last_value_func)
+    lagged_last_value = _apply_lag_to_value(lag, last_value, last_value_func, cursor_unit)
     if (
         initial_value is not None
         and last_value_func((initial_value, lagged_last_value)) == initial_value
@@ -99,6 +138,7 @@ def apply_lag_with_suppression(
     end_value: Optional[TCursorValue],
     last_value: Optional[TCursorValue],
     resource_name: Optional[str] = None,
+    cursor_unit: Optional[Literal["date", "datetime"]] = None,
 ) -> Optional[TCursorValue]:
     """Conditionally apply lag to `last_value`, mirroring `Incremental.last_value` rules.
 
@@ -118,4 +158,4 @@ def apply_lag_with_suppression(
     if end_value is not None:
         logger.info(f"Lag on {resource_name} is deactivated if end_value is set in incremental.")
         return last_value
-    return apply_lag(lag, initial_value, last_value, last_value_func)
+    return apply_lag(lag, initial_value, last_value, last_value_func, cursor_unit)
